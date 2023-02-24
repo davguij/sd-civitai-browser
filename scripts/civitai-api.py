@@ -12,6 +12,7 @@ from tqdm import tqdm
 import re
 from requests.exceptions import ConnectionError
 import urllib.request
+import shutil
 
 
 def download_file(url, file_name):
@@ -123,10 +124,13 @@ def download_file_thread(url, file_name, content_type, use_new_folder, model_nam
     elif content_type == "AestheticGradient":
         folder = "extensions/stable-diffusion-webui-aesthetic-gradients/aesthetic_embeddings"
         new_folder = "extensions/stable-diffusion-webui-aesthetic-gradients/aesthetic_embeddings/new"
+    elif content_type == "VAE":
+        folder = "models/VAE"
+        new_folder = "models/VAE/new"
     elif content_type == "LORA":
         folder = "models/Lora"
         new_folder = "models/Lora/new"
-    if content_type == "TextualInversion" or content_type == "AestheticGradient":
+    if content_type == "TextualInversion" or content_type == "VAE" or content_type == "AestheticGradient":
         if use_new_folder:
             model_folder = new_folder
             if not os.path.exists(new_folder):
@@ -170,10 +174,13 @@ def save_text_file(file_name, content_type, use_new_folder, trained_words, model
     elif content_type == "AestheticGradient":
         folder = "extensions/stable-diffusion-webui-aesthetic-gradients/aesthetic_embeddings"
         new_folder = "extensions/stable-diffusion-webui-aesthetic-gradients/aesthetic_embeddings/new"
+    elif content_type == "VAE":
+        folder = "models/VAE"
+        new_folder = "models/VAE/new"
     elif content_type == "LORA":
         folder = "models/Lora"
         new_folder = "models/Lora/new"
-    if content_type == "TextualInversion" or content_type == "AestheticGradient":
+    if content_type == "TextualInversion" or content_type == "VAE" or content_type == "AestheticGradient":
         if use_new_folder:
             model_folder = new_folder
             if not os.path.exists(new_folder):
@@ -339,12 +346,26 @@ def update_everything(list_models, list_versions, model_filename, dl_url):
     dl_url = update_dl_url(list_models, list_versions, f['value'])
     return (a, d, f, list_versions, list_models, dl_url)
 
-def save_image_files(preview_image_html, model_filename, list_models):
+def save_image_files(preview_image_html, model_filename, list_models, content_type):
     print("Save Images Clicked")
     img_urls = re.findall(r'src=[\'"]?([^\'" >]+)', preview_image_html)
 
     name = os.path.splitext(model_filename)[0]
-    model_folder = os.path.join("models\Stable-diffusion",list_models.replace(" ","_").replace("(","").replace(")","").replace("|","").replace(":","-"))
+
+    if content_type == "Checkpoint":
+        folder = "models/Stable-diffusion"
+    elif content_type == "Hypernetwork":
+        folder = "models/hypernetworks"
+    elif content_type == "TextualInversion":
+        folder = "embeddings"
+    elif content_type == "AestheticGradient":
+        folder = "extensions/stable-diffusion-webui-aesthetic-gradients/aesthetic_embeddings"
+    elif content_type == "VAE":
+        folder = "models/VAE"
+    elif content_type == "LORA":
+        folder = "models/Lora"
+
+    model_folder = os.path.join(folder,list_models.replace(" ","_").replace("(","").replace(")","").replace("|","").replace(":","-"))
 
     opener = urllib.request.build_opener()
     opener.addheaders = [('User-agent', 'Mozilla/5.0')]
@@ -360,7 +381,10 @@ def save_image_files(preview_image_html, model_filename, list_models):
                 with open(os.path.join(model_folder, filename), 'wb') as f:
                     f.write(url.read())
                     print("\t\t\tDownloaded")
-            #with urllib.request.urlretrieve(img_url, os.path.join(model_folder, filename)) as dl:
+
+                #for the first one, let's make an image name that works with preview
+                if i == 0:
+                    shutil.copy(os.path.join(model_folder, filename), os.path.join(model_folder, name + ".png") )
 
         except urllib.error.URLError as e:
             print(f'Error: {e.reason}')
@@ -369,7 +393,7 @@ def on_ui_tabs():
     with gr.Blocks() as civitai_interface:
         with gr.Row():
             with gr.Column(scale=2):
-                content_type = gr.Radio(label='Content type:', choices=["Checkpoint","Hypernetwork","TextualInversion","AestheticGradient", "LORA"], value="Checkpoint", type="value")
+                content_type = gr.Radio(label='Content type:', choices=["Checkpoint","Hypernetwork","TextualInversion","AestheticGradient", "VAE", "LORA"], value="Checkpoint", type="value")
             with gr.Column(scale=2):
                 sort_type = gr.Radio(label='Sort List by:', choices=["Newest","Most Downloaded","Highest Rated","Most Liked"], value="Newest", type="value")
             with gr.Column(scale=1):
@@ -412,7 +436,8 @@ def on_ui_tabs():
             inputs=[
             preview_image_html,
             model_filename,
-            list_models
+            list_models,
+            content_type
             ],
             outputs=[]
         )
